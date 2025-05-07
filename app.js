@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.json({ message: "Hello from Express API!" });
+  res.json({ message: "Hello from Express API! by ci/cd" });
 });
 
 app.get("/api", (req, res) => {
