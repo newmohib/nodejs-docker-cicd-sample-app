@@ -1,0 +1,46 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: ["main", "master"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set image tag
+        id: vars
+        run: echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+      - name: Build Docker images
+        run: |
+          docker build -t ${{ secrets.IMAGE_NAME }}:${{ env.TAG }} .
+          docker tag ${{ secrets.IMAGE_NAME }}:${{ env.TAG }} ${{ secrets.IMAGE_NAME }}:latest
+
+      - name: Push Docker images
+        run: |
+          docker push ${{ secrets.IMAGE_NAME }}:${{ env.TAG }}
+          docker push ${{ secrets.IMAGE_NAME }}:latest
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} <<EOF
+            docker pull ${{ secrets.IMAGE_NAME }}:${{ env.TAG }}
+            docker stop express-app || true
+            docker rm express-app || true
+            docker run -d --name express-app -p 3000:3000 ${{ secrets.IMAGE_NAME }}:${{ env.TAG }}
+          EOF
