@@ -1,0 +1,27 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_TLS_CERTDIR: ""  # Disable TLS in Docker (GitLab runners)
+
+before_script:
+  - echo "$EC2_KEY" > ec2_key.pem
+  - chmod 600 ec2_key.pem
+
+build:
+  stage: build
+  script:
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+    - docker build -t $DOCKER_IMAGE_NAME:latest .
+    - docker push $DOCKER_IMAGE_NAME:latest
+  only:
+    - master
+
+deploy:
+  stage: deploy
+  script:
+    - chmod +x deploy.sh
+    - ./deploy.sh $EC2_HOST $DOCKER_IMAGE_NAME ec2_key.pem
+  only:
+    - master
